@@ -276,6 +276,8 @@ get_nearest_data_cn() {
             else
                 local ip=$(get_ip_from_url ${host_url})
             fi
+            # DNS解析失败返回空IP时跳过，避免空字符串被误判为合法IP导致重复节点
+            [[ -z "$ip" ]] && continue
             if [[ $url == *"mobile"* ]]; then
                 city="移动${city}"
             elif [[ $url == *"telecom"* ]]; then

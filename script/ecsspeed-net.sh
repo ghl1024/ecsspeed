@@ -187,9 +187,12 @@ download_speedtest_file() {
             sys_bit="arm64"
         fi
         local url3="https://github.com/showwin/speedtest-go/releases/download/v${Speedtest_Go_version}/speedtest-go_${Speedtest_Go_version}_Linux_${sys_bit}.tar.gz"
-        curl -o speedtest.tar.gz "${cdn_success_url}${url3}"
+        curl --fail -sL -m 30 -o speedtest.tar.gz "${cdn_success_url}${url3}"
         if [ $? -eq 0 ]; then
             _green "Used unofficial speedtest-go"
+        else
+            _red "Error: Failed to download speedtest-go via CDN."
+            rm -f speedtest.tar.gz
         fi
     fi
     if [ ! -d "/root/speedtest-cli" ]; then
