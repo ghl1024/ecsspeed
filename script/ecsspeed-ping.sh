@@ -12,7 +12,7 @@ else
     echo "Locale set to $utf8_locale"
 fi
 export DEBIAN_FRONTEND=noninteractive
-ecsspeedpingver="2025/04/25"
+ecsspeedpingver="2026/02/28"
 cd /root >/dev/null 2>&1
 RED="\033[31m"
 GREEN="\033[32m"
@@ -54,7 +54,7 @@ checkupdate() {
 
 checkcurl() {
     _yellow "checking curl"
-    if [ ! -e '/usr/bin/curl' ]; then
+    if ! command -v curl &>/dev/null; then
         _yellow "Installing curl"
         ${PACKAGE_INSTALL[int]} curl
     fi
@@ -66,7 +66,7 @@ checkcurl() {
 
 checkwget() {
     _yellow "checking wget"
-    if [ ! -e '/usr/bin/wget' ]; then
+    if ! command -v wget &>/dev/null; then
         _yellow "Installing wget"
         ${PACKAGE_INSTALL[int]} wget
     fi
@@ -74,7 +74,7 @@ checkwget() {
 
 checkping() {
     _yellow "checking ping"
-    if [ ! -e '/usr/bin/ping' ]; then
+    if ! command -v ping &>/dev/null; then
         _yellow "Installing ping"
         ${PACKAGE_INSTALL[int]} iputils-ping >/dev/null 2>&1
         ${PACKAGE_INSTALL[int]} ping >/dev/null 2>&1
@@ -91,17 +91,18 @@ checknslookup() {
 
 check_china() {
     if [[ -z "${CN}" ]]; then
-        if [[ $(curl -m 6 -sL https://ipapi.co/json | grep 'China') != "" ]]; then
+        local ipapi_result
+        ipapi_result=$(curl -m 6 -sL https://ipapi.co/json 2>/dev/null)
+        local curl_exit=$?
+        if [[ $(echo "$ipapi_result" | grep 'China') != "" ]]; then
             _yellow "根据ipapi.co提供的信息，当前IP可能在中国"
             echo "使用中国镜像"
             CN=true
-        else
-            if [[ $? -ne 0 ]]; then
-                if [[ $(curl -m 6 -sL cip.cc) =~ "中国" ]]; then
-                    _yellow "根据ipapi.co提供的信息，当前IP可能在中国"
-                    echo "使用中国镜像"
-                    CN=true
-                fi
+        elif [[ $curl_exit -ne 0 ]]; then
+            if [[ $(curl -m 6 -sL cip.cc) =~ "中国" ]]; then
+                _yellow "根据cip.cc提供的信息，当前IP可能在中国"
+                echo "使用中国镜像"
+                CN=true
             fi
         fi
     fi
@@ -199,7 +200,7 @@ get_nearest_data_net() {
         result="${results[$index]}"
         ping_ip="${pings[$index]}"
         for item in "${data[@]}"; do
-            if [[ "$item" == *"$result"* ]]; then
+            if [[ "$(echo "$item" | cut -d',' -f3)" == "$result" ]]; then
                 name=$(echo "$item" | cut -d',' -f2)
                 sorted_data+=("$name,$ping_ip,$result")
             fi
@@ -470,7 +471,9 @@ counter=0
 for ping in "${PINGS_LIST[@]}"; do
     line=$(echo "$ping" | sed 's/,/ /g')
     value=$(echo "$line" | awk '{print $2}')
-    if ((value <= 50)); then
+    if [[ -z "$value" ]]; then
+        color='\033[0;31m' # 中红色（ping失败）
+    elif ((value <= 50)); then
         color='\033[0;32m' # 中绿色
     elif ((value <= 100)); then
         color='\033[1;32m' # 浅绿色
@@ -486,9 +489,9 @@ for ping in "${PINGS_LIST[@]}"; do
     line=$(echo "$line" | cut -d ' ' -f 1 | sed 's/5G//g')
     length1=$(get_string_length " ${line}")
     length2=${#value}
-    if [ $length1 -gt 8 ]; then
+    if [ $length1 -gt 16 ]; then
         tabs="\t   "
-    elif [ $length1 -gt 16 ]; then
+    elif [ $length1 -gt 8 ]; then
         tabs="\t\t   "
     else
         tabs="\t\t\t   "

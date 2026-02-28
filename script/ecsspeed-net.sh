@@ -12,7 +12,7 @@ else
     echo "Locale set to $utf8_locale"
 fi
 export DEBIAN_FRONTEND=noninteractive
-ecsspeednetver="2025/04/25"
+ecsspeednetver="2026/02/28"
 SERVER_BASE_URL="https://raw.githubusercontent.com/spiritLHLS/speedtest.net-CN-ID/main"
 Speedtest_Go_version="1.6.12"
 BrowserUA="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/99.0.4844.74 Safari/537.36"
@@ -88,7 +88,7 @@ checkupdate() {
 
 checkcurl() {
     _yellow "checking curl"
-    if [ ! -e '/usr/bin/curl' ]; then
+    if ! command -v curl &>/dev/null; then
         _yellow "Installing curl"
         ${PACKAGE_INSTALL[int]} curl
     fi
@@ -100,7 +100,7 @@ checkcurl() {
 
 checkwget() {
     _yellow "checking wget"
-    if [ ! -e '/usr/bin/wget' ]; then
+    if ! command -v wget &>/dev/null; then
         _yellow "Installing wget"
         ${PACKAGE_INSTALL[int]} wget
     fi
@@ -108,7 +108,7 @@ checkwget() {
 
 checktar() {
     _yellow "checking tar"
-    if [ ! -e '/usr/bin/tar' ]; then
+    if ! command -v tar &>/dev/null; then
         _yellow "Installing tar"
         ${PACKAGE_INSTALL[int]} tar
     fi
@@ -120,7 +120,7 @@ checktar() {
 
 checkping() {
     _yellow "checking ping"
-    if [ ! -e '/usr/bin/ping' ]; then
+    if ! command -v ping &>/dev/null; then
         _yellow "Installing ping"
         ${PACKAGE_INSTALL[int]} iputils-ping >/dev/null 2>&1
         ${PACKAGE_INSTALL[int]} ping >/dev/null 2>&1
@@ -467,31 +467,42 @@ get_nearest_data() {
         fi
     done <<<"$response"
 
-    rm -f /tmp/pingtest
+    local last_part=$(echo "$url" | rev | cut -d'/' -f1 | rev)
+    local pingname=$(echo "$last_part" | cut -d'.' -f1)
+    local tmp_file="/tmp/pingtest_net_${pingname}"
+    rm -f "$tmp_file"
     # 并行ping测试所有IP
     for ((i = 0; i < ${#data[@]}; i++)); do
         {
             ip=$(echo "${data[$i]}" | awk -F ',' '{print $3}')
-            ping_test "$ip" >>/tmp/pingtest
+            ping_test "$ip" >>"$tmp_file"
         } &
     done
     wait
 
     # 取IP顺序列表results
-    output=$(cat /tmp/pingtest)
-    rm -f /tmp/pingtest
+    local output
+    output=$(cat "$tmp_file")
+    rm -f "$tmp_file"
+    local lines
     IFS=$'\n' read -rd '' -a lines <<<"$output"
-    results=()
+    local results=()
+    local line
+    local field
     for line in "${lines[@]}"; do
         field=$(echo "$line" | cut -d',' -f1)
         results+=("$field")
     done
 
     # 比对data取IP对应的数组
-    sorted_data=()
+    local sorted_data=()
+    local result
+    local item
+    local id
+    local name
     for result in "${results[@]}"; do
         for item in "${data[@]}"; do
-            if [[ "$item" == *"$result"* ]]; then
+            if [[ "$(echo "$item" | cut -d',' -f3)" == "$result" ]]; then
                 id=$(echo "$item" | cut -d',' -f1)
                 name=$(echo "$item" | cut -d',' -f2)
                 sorted_data+=("$id,$name")
