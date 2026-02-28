@@ -169,7 +169,10 @@ get_nearest_data_net() {
         } &
     done
     wait
-    cat "$tmp_dir_net"/* >"/tmp/pingtest${pingname}" 2>/dev/null
+    # 按数字顺序合并，避免glob字典序导致0,1,10,11,2...的顺序错乱
+    for idx in $(seq 0 $((${#data[@]} - 1))); do
+        cat "$tmp_dir_net/$idx" 2>/dev/null
+    done >"/tmp/pingtest${pingname}"
     rm -rf "$tmp_dir_net"
     sleep 0.5
     # 取IP顺序列表results
@@ -295,7 +298,10 @@ get_nearest_data_cn() {
         } &
     done
     wait
-    cat "$tmp_dir_cn"/* >"/tmp/pingtest${pingname}" 2>/dev/null
+    # 按数字顺序合并，避免glob字典序导致0,1,10,11,2...的顺序错乱
+    for idx in $(seq 0 $((${#data[@]} - 1))); do
+        cat "$tmp_dir_cn/$idx" 2>/dev/null
+    done >"/tmp/pingtest${pingname}"
     rm -rf "$tmp_dir_cn"
     sleep 0.5
     if [ ! -f "/tmp/pingtest${pingname}" ]; then
@@ -521,4 +527,4 @@ if ((counter % 3 != 0)); then
     echo
 fi
 print_end_time
-rm -rf /tmp/ping*
+rm -f /tmp/pingtest* /tmp/pinglog*

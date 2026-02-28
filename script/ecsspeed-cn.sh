@@ -262,8 +262,7 @@ speed_test() {
 test_list() {
     local list=("$@")
     if [ ${#list[@]} -eq 0 ]; then
-        echo "列表为空，程序退出"
-        exit 1
+        return 0
     fi
     for ((i = 0; i < ${#list[@]}; i += 1)); do
         host=$(echo "${list[i]}" | cut -d',' -f1)
@@ -472,20 +471,24 @@ get_nearest_data() {
         } &
     done
     wait
-    cat "$tmp_dir"/* >"$tmp_file" 2>/dev/null
+    # 按数字顺序合并，避免glob字典序导致0,1,10,11,2...的顺序错乱
+    for idx in $(seq 0 $((${#data[@]} - 1))); do
+        cat "$tmp_dir/$idx" 2>/dev/null
+    done >"$tmp_file"
     rm -rf "$tmp_dir"
 
-    local output
-    output=$(cat "$tmp_file")
+    # 过滤掉ping失败（延迟为空）的节点，并按延迟升序排列
+    local sorted_output
+    sorted_output=$(awk -F',' 'NF>=2 && $2!=""' "$tmp_file" | sort -t',' -k2 -n)
     rm -f "$tmp_file"
     local lines
-    IFS=$'\n' read -rd '' -a lines <<<"$output"
+    IFS=$'\n' read -rd '' -a lines <<<"$sorted_output"
     local results=()
     local line
     local field
     for line in "${lines[@]}"; do
         field=$(echo "$line" | cut -d',' -f1)
-        results+=("$field")
+        [[ -n "$field" ]] && results+=("$field")
     done
 
     local sorted_data=()
@@ -495,7 +498,7 @@ get_nearest_data() {
     local name
     for result in "${results[@]}"; do
         for item in "${data[@]}"; do
-            if [[ "$(echo "$item" | cut -d',' -f3)" == "$result" ]]; then
+            if [[  "$(echo "$item" | cut -d',' -f3)" == "$result" ]]; then
                 host=$(echo "$item" | cut -d',' -f1)
                 name=$(echo "$item" | cut -d',' -f2)
                 sorted_data+=("$host,$name")

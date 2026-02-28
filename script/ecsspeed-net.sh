@@ -301,8 +301,7 @@ speed_test() {
 test_list() {
     local list=("$@")
     if [ ${#list[@]} -eq 0 ]; then
-        echo "列表为空，程序退出"
-        exit 1
+        return 0
     fi
     for ((i = 0; i < ${#list[@]}; i += 1)); do
         id=$(echo "${list[i]}" | cut -d',' -f1)
@@ -478,21 +477,24 @@ get_nearest_data() {
         } &
     done
     wait
-    cat "$tmp_dir"/* >"$tmp_file" 2>/dev/null
+    # 按数字顺序合并，避免glob字典序导致0,1,10,11,2...的顺序错乱
+    for idx in $(seq 0 $((${#data[@]} - 1))); do
+        cat "$tmp_dir/$idx" 2>/dev/null
+    done >"$tmp_file"
     rm -rf "$tmp_dir"
 
-    # 取IP顺序列表results
-    local output
-    output=$(cat "$tmp_file")
+    # 过滤掉ping失败（延迟为空）的节点，并按延迟升序排列
+    local sorted_output
+    sorted_output=$(awk -F',' 'NF>=2 && $2!=""' "$tmp_file" | sort -t',' -k2 -n)
     rm -f "$tmp_file"
     local lines
-    IFS=$'\n' read -rd '' -a lines <<<"$output"
+    IFS=$'\n' read -rd '' -a lines <<<"$sorted_output"
     local results=()
     local line
     local field
     for line in "${lines[@]}"; do
         field=$(echo "$line" | cut -d',' -f1)
-        results+=("$field")
+        [[ -n "$field" ]] && results+=("$field")
     done
 
     # 比对data取IP对应的数组
@@ -600,9 +602,9 @@ runtest() {
         CN_Telecom=($(get_data "${SERVER_BASE_URL}/CN_Telecom.csv"))
         CN_Mobile=($(get_data "${SERVER_BASE_URL}/CN_Mobile.csv"))
         temp_head
-        test_list "${CN_Unicom[@]}" | tee ./speedtest-cli/speedlog.txt
-        test_list "${CN_Telecom[@]}" | tee ./speedtest-cli/speedlog.txt
-        test_list "${CN_Mobile[@]}" | tee ./speedtest-cli/speedlog.txt
+        test_list "${CN_Unicom[@]}" | tee    ./speedtest-cli/speedlog.txt
+        test_list "${CN_Telecom[@]}" | tee -a ./speedtest-cli/speedlog.txt
+        test_list "${CN_Mobile[@]}"  | tee -a ./speedtest-cli/speedlog.txt
         ;;
     1)
         checkping
@@ -612,9 +614,9 @@ runtest() {
         CN_Mobile=($(get_nearest_data "${SERVER_BASE_URL}/CN_Mobile.csv"))
         _blue "就近节点若缺少某运营商，那么该运营商连通性很差，建议使用对应运营商选项全测看看"
         temp_head
-        test_list "${CN_Unicom[@]}" | tee ./speedtest-cli/speedlog.txt
-        test_list "${CN_Telecom[@]}" | tee ./speedtest-cli/speedlog.txt
-        test_list "${CN_Mobile[@]}" | tee ./speedtest-cli/speedlog.txt
+        test_list "${CN_Unicom[@]}" | tee    ./speedtest-cli/speedlog.txt
+        test_list "${CN_Telecom[@]}" | tee -a ./speedtest-cli/speedlog.txt
+        test_list "${CN_Mobile[@]}"  | tee -a ./speedtest-cli/speedlog.txt
         ;;
     *)
         echo "Exit"
@@ -633,14 +635,13 @@ checkver() {
 }
 
 checkerror() {
-    end_time=$(date +%s)
-    time=$((${end_time} - ${start_time}))
     if [ -f ./speedtest-cli/speedlog.txt ]; then
         if ! grep -qE "(新加坡|日本|台湾|香港|联通|电信|移动|Hong|Kong|Taiwan|Taipei)" ./speedtest-cli/speedlog.txt; then
             _yellow "Unable to use the 1.2.0, back to 1.0.0"
             speedtest_ver="1.0.0"
             global_exit
             (install_speedtest >/dev/null 2>&1)
+            start_time=$(date +%s)
             runtest
         fi
     fi
