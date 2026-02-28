@@ -180,7 +180,8 @@ get_nearest_data_net() {
         echo "" >"/tmp/pinglog${pingname}"
         return
     fi
-    local output=$(cat "/tmp/pingtest${pingname}")
+    # 过滤失败节点并按延迟升序排列
+    local output=$(awk -F',' 'NF>=2 && $2!=""' "/tmp/pingtest${pingname}" | sort -t',' -k2 -n)
     local lines
     local IFS
     local line
@@ -218,7 +219,7 @@ get_nearest_data_net() {
 }
 
 get_ip_from_url() {
-    nslookup -querytype=A $1 | awk '/^Name:/ {next;} /^Address: / { print $2 }'
+    nslookup -querytype=A $1 | awk '/^Name:/ {next;} /^Address: / { print $2 }' | head -1
 }
 
 is_ipv4() {
@@ -308,7 +309,8 @@ get_nearest_data_cn() {
         echo "" >"/tmp/pinglog${pingname}"
         return
     fi
-    local output=$(cat "/tmp/pingtest${pingname}")
+    # 过滤失败节点并按延迟升序排列
+    local output=$(awk -F',' 'NF>=2 && $2!=""' "/tmp/pingtest${pingname}" | sort -t',' -k2 -n)
     local lines
     local IFS
     local line

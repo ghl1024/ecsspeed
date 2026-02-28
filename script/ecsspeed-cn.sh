@@ -326,7 +326,7 @@ check_cdn_file() {
 }
 
 get_ip_from_url() {
-    nslookup -querytype=A $1 | awk '/^Name:/ {next;} /^Address: / { print $2 }'
+    nslookup -querytype=A $1 | awk '/^Name:/ {next;} /^Address: / { print $2 }' | head -1
 }
 
 is_ipv4() {

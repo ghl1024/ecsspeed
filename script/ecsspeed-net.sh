@@ -635,6 +635,8 @@ checkver() {
 }
 
 checkerror() {
+    # 选项8(日本)和9(新加坡)节点名为英文，不含中文关键词，跳过降级检查
+    [[ $selection =~ ^[89]$ ]] && return 0
     if [ -f ./speedtest-cli/speedlog.txt ]; then
         if ! grep -qE "(新加坡|日本|台湾|香港|联通|电信|移动|Hong|Kong|Taiwan|Taipei)" ./speedtest-cli/speedlog.txt; then
             _yellow "Unable to use the 1.2.0, back to 1.0.0"
