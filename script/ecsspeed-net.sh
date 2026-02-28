@@ -41,6 +41,7 @@ for ((int = 0; int < ${#REGEX[@]}; int++)); do
         [[ -n $SYSTEM ]] && break
     fi
 done
+[[ $int -ge ${#REGEX[@]} ]] && int=0
 apt-get --fix-broken install -y >/dev/null 2>&1
 
 checkroot() {
@@ -51,10 +52,7 @@ checkroot() {
 global_exit() {
     rm -rf /root/speedtest.tgz*
     rm -rf /root/speedtest.tar.gz*
-    rm -rf /root/speedtest-cli*
-    rm -rf /root/speedtest-cli/speedtest*
-    rm -rf /root/speedtest-cli/LICENSE*
-    rm -rf /root/speedtest-cli/README.md*
+    rm -rf /root/speedtest-cli
 }
 
 checksystem() {
@@ -336,7 +334,7 @@ print_end_time() {
     end_time=$(date +%s)
     time=$((${end_time} - ${start_time}))
     echo "——————————————————————————————————————————————————————————————————————————————"
-    if [ ${time} -lt 30 ]; then
+    if [ ${time} -lt 10 ]; then
         echo " 本机连通性较差，可能导致测速失败"
     fi
     if [ ${time} -gt 60 ]; then
@@ -470,15 +468,18 @@ get_nearest_data() {
     local last_part=$(echo "$url" | rev | cut -d'/' -f1 | rev)
     local pingname=$(echo "$last_part" | cut -d'.' -f1)
     local tmp_file="/tmp/pingtest_net_${pingname}"
+    local tmp_dir=$(mktemp -d)
     rm -f "$tmp_file"
     # 并行ping测试所有IP
     for ((i = 0; i < ${#data[@]}; i++)); do
         {
             ip=$(echo "${data[$i]}" | awk -F ',' '{print $3}')
-            ping_test "$ip" >>"$tmp_file"
+            ping_test "$ip" >"$tmp_dir/$i"
         } &
     done
     wait
+    cat "$tmp_dir"/* >"$tmp_file" 2>/dev/null
+    rm -rf "$tmp_dir"
 
     # 取IP顺序列表results
     local output
@@ -555,13 +556,13 @@ runtest() {
         _yellow "checking speedtest servers"
         slist=($(get_data "${SERVER_BASE_URL}/SG.csv"))
         temp_head
-        test_list "${slist[@]}"
+        test_list "${slist[@]}" | tee ./speedtest-cli/speedlog.txt
         ;;
     8)
         _yellow "checking speedtest servers"
         slist=($(get_data "${SERVER_BASE_URL}/JP.csv"))
         temp_head
-        test_list "${slist[@]}"
+        test_list "${slist[@]}" | tee ./speedtest-cli/speedlog.txt
         ;;
     7)
         _yellow "checking speedtest server ID"

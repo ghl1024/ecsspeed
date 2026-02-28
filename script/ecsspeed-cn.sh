@@ -41,6 +41,7 @@ for ((int = 0; int < ${#REGEX[@]}; int++)); do
         [[ -n $SYSTEM ]] && break
     fi
 done
+[[ $int -ge ${#REGEX[@]} ]] && int=0
 apt-get --fix-broken install -y >/dev/null 2>&1
 
 checkroot() {
@@ -51,10 +52,7 @@ checkroot() {
 global_exit() {
     rm -rf /root/speedtest.tgz*
     rm -rf /root/speedtest.tar.gz*
-    rm -rf /root/speedtest-cli*
-    rm -rf /root/speedtest-cli/speedtest*
-    rm -rf /root/speedtest-cli/LICENSE*
-    rm -rf /root/speedtest-cli/README.md*
+    rm -rf /root/speedtest-cli
 }
 
 checksystem() {
@@ -234,29 +232,27 @@ get_string_length() {
 
 speed_test() {
     local nodeName="$2"
-    if [ ! -f "./speedtest-cli/speedtest" ]; then
-        if [ -z "$1" ]; then
-            ./speedtest-cli/speedtest-go --ua="${BrowserUA}" >./speedtest-cli/speedtest.log 2>&1
-        else
-            ./speedtest-cli/speedtest-go --ua="${BrowserUA}" --custom-url=http://"$1"/upload.php >./speedtest-cli/speedtest.log 2>&1
+    if [ -z "$1" ]; then
+        ./speedtest-cli/speedtest-go --ua="${BrowserUA}" >./speedtest-cli/speedtest.log 2>&1
+    else
+        ./speedtest-cli/speedtest-go --ua="${BrowserUA}" --custom-url=http://"$1"/upload.php >./speedtest-cli/speedtest.log 2>&1
+    fi
+    if [ $? -eq 0 ]; then
+        local dl_speed=$(grep -oP 'Download: \K[\d\.]+' ./speedtest-cli/speedtest.log)
+        local up_speed=$(grep -oP 'Upload: \K[\d\.]+' ./speedtest-cli/speedtest.log)
+        local latency=$(grep -oP 'Latency: \K[\d\.]+' ./speedtest-cli/speedtest.log)
+        if [[ -n "${latency}" && "${latency}" == *.* ]]; then
+            latency=$(awk '{printf "%.2f", $1}' <<<"${latency}")
         fi
-        if [ $? -eq 0 ]; then
-            local dl_speed=$(grep -oP 'Download: \K[\d\.]+' ./speedtest-cli/speedtest.log)
-            local up_speed=$(grep -oP 'Upload: \K[\d\.]+' ./speedtest-cli/speedtest.log)
-            local latency=$(grep -oP 'Latency: \K[\d\.]+' ./speedtest-cli/speedtest.log)
-            if [[ -n "${latency}" && "${latency}" == *.* ]]; then
-                latency=$(awk '{printf "%.2f", $1}' <<<"${latency}")
-            fi
-            if [[ -n "${dl_speed}" || -n "${up_speed}" || -n "${latency}" ]]; then
-                if [[ $selection =~ ^[1-5]$ ]]; then
+        if [[ -n "${dl_speed}" || -n "${up_speed}" || -n "${latency}" ]]; then
+            if [[ $selection =~ ^[1-5]$ ]]; then
+                echo -e "${nodeName}\t ${up_speed} Mbps\t ${dl_speed} Mbps\t ${latency} ms\t"
+            else
+                length=$(get_string_length "$nodeName")
+                if [ $length -ge 8 ]; then
                     echo -e "${nodeName}\t ${up_speed} Mbps\t ${dl_speed} Mbps\t ${latency} ms\t"
                 else
-                    length=$(get_string_length "$nodeName")
-                    if [ $length -ge 8 ]; then
-                        echo -e "${nodeName}\t ${up_speed} Mbps\t ${dl_speed} Mbps\t ${latency} ms\t"
-                    else
-                        echo -e "${nodeName}\t\t ${up_speed} Mbps\t ${dl_speed} Mbps\t ${latency} ms\t"
-                    fi
+                    echo -e "${nodeName}\t\t ${up_speed} Mbps\t ${dl_speed} Mbps\t ${latency} ms\t"
                 fi
             fi
         fi
@@ -290,7 +286,7 @@ print_end_time() {
     end_time=$(date +%s)
     time=$((${end_time} - ${start_time}))
     echo "——————————————————————————————————————————————————————————————————————————————"
-    if [ ${time} -lt 30 ]; then
+    if [ ${time} -lt 10 ]; then
         echo " 本机连通性较差，可能导致测速失败"
     fi
     if [ ${time} -gt 60 ]; then
@@ -467,14 +463,17 @@ get_nearest_data() {
     local last_part=$(echo "$url" | rev | cut -d'/' -f1 | rev)
     local pingname=$(echo "$last_part" | cut -d'.' -f1)
     local tmp_file="/tmp/pingtest_cn_${pingname}"
+    local tmp_dir=$(mktemp -d)
     rm -f "$tmp_file"
     for ((i = 0; i < ${#data[@]}; i++)); do
         {
             ip=$(echo "${ip_list[$i]}")
-            ping_test "$ip" >>"$tmp_file"
+            ping_test "$ip" >"$tmp_dir/$i"
         } &
     done
     wait
+    cat "$tmp_dir"/* >"$tmp_file" 2>/dev/null
+    rm -rf "$tmp_dir"
 
     local output
     output=$(cat "$tmp_file")

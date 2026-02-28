@@ -38,6 +38,7 @@ for ((int = 0; int < ${#REGEX[@]}; int++)); do
         [[ -n $SYSTEM ]] && break
     fi
 done
+[[ $int -ge ${#REGEX[@]} ]] && int=0
 apt-get --fix-broken install -y >/dev/null 2>&1
 
 checkroot() {
@@ -160,13 +161,16 @@ get_nearest_data_net() {
     done <<<"$response"
 
     # 并行ping测试所有IP
+    local tmp_dir_net=$(mktemp -d)
     for ((i = 0; i < ${#data[@]}; i++)); do
         {
             local ip=$(echo "${data[$i]}" | awk -F ',' '{print $3}')
-            ping_test "$ip" >>"/tmp/pingtest${pingname}"
+            ping_test "$ip" >"$tmp_dir_net/$i"
         } &
     done
     wait
+    cat "$tmp_dir_net"/* >"/tmp/pingtest${pingname}" 2>/dev/null
+    rm -rf "$tmp_dir_net"
     sleep 0.5
     # 取IP顺序列表results
     if [ ! -f "/tmp/pingtest${pingname}" ]; then
@@ -283,13 +287,16 @@ get_nearest_data_cn() {
         fi
     done <<<"$response"
 
+    local tmp_dir_cn=$(mktemp -d)
     for ((i = 0; i < ${#data[@]}; i++)); do
         {
             local ip=$(echo "${ip_list[$i]}")
-            ping_test "$ip" >>"/tmp/pingtest${pingname}"
+            ping_test "$ip" >"$tmp_dir_cn/$i"
         } &
     done
     wait
+    cat "$tmp_dir_cn"/* >"/tmp/pingtest${pingname}" 2>/dev/null
+    rm -rf "$tmp_dir_cn"
     sleep 0.5
     if [ ! -f "/tmp/pingtest${pingname}" ]; then
         echo "" >"/tmp/pinglog${pingname}"
