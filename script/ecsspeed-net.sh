@@ -172,12 +172,16 @@ download_speedtest_file() {
             _red "Error: Failed to download official speedtest-cli."
             rm -rf speedtest.tgz*
             _yellow "Try using the unofficial speedtest-go"
+            if [ "$sys_bit" = "aarch64" ]; then
+                sys_bit="arm64"
+            fi
+            local url3="https://github.com/showwin/speedtest-go/releases/download/v${Speedtest_Go_version}/speedtest-go_${Speedtest_Go_version}_Linux_${sys_bit}.tar.gz"
+            curl --fail -sL -m 10 -o speedtest.tar.gz "${url3}" || curl --fail -sL -m 15 -o speedtest.tar.gz "${cdn_success_url}${url3}"
+        else
+            if [ "$sys_bit" = "aarch64" ]; then
+                sys_bit="arm64"
+            fi
         fi
-        if [ "$sys_bit" = "aarch64" ]; then
-            sys_bit="arm64"
-        fi
-        local url3="https://github.com/showwin/speedtest-go/releases/download/v${Speedtest_Go_version}/speedtest-go_${Speedtest_Go_version}_Linux_${sys_bit}.tar.gz"
-        curl --fail -sL -m 10 -o speedtest.tar.gz "${url3}" || curl --fail -sL -m 15 -o speedtest.tar.gz "${cdn_success_url}${url3}"
     else
         if [ "$sys_bit" = "aarch64" ]; then
             sys_bit="arm64"
@@ -635,8 +639,8 @@ checkver() {
 }
 
 checkerror() {
-    # 选项8(日本)和9(新加坡)节点名为英文，不含中文关键词，跳过降级检查
-    [[ $selection =~ ^[89]$ ]] && return 0
+    # 选项6-9均为国际节点(香港/台湾/日本/新加坡)，城市名为英文，无法用中文关键词判断，跳过降级检查
+    [[ $selection =~ ^[6-9]$ ]] && return 0
     if [ -f ./speedtest-cli/speedlog.txt ]; then
         if ! grep -qE "(新加坡|日本|台湾|香港|联通|电信|移动|Hong|Kong|Taiwan|Taipei)" ./speedtest-cli/speedlog.txt; then
             _yellow "Unable to use the 1.2.0, back to 1.0.0"
